@@ -331,7 +331,7 @@
 			 N))))))
     M))
 
-(defun format-matrix (matrix)
+(defun format-matrix (matrix &key (stream *standard-output*))
   (let ((M (alexandria:hash-table-alist matrix))
 	(row-keys
 	 (sort
@@ -352,11 +352,11 @@
 			       :tag 'upostag))))
 	  #'string<)))
 
-    (format t "~{~15a |~^ ~}~%" (cons " " column-keys))
+    (format stream "~{~15a |~^ ~}~%" (cons " " column-keys))
     (dolist (dep1 row-keys)
       (let ((L (reverse (remove-if-not #'(lambda (x) (equal x dep1)) M
 				       :key #'(lambda (x) (first (car x)))))))
-	(format t "~{~15a |~^ ~}~%"
+	(format stream "~{~15a |~^ ~}~%"
 		(cons dep1 (mapcar #'(lambda (x) (cdr x)) L)))))))
 
 (defun simple-deprel (deprel)
