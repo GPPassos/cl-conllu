@@ -35,7 +35,7 @@
     "dep")
   "List of the 37 universal syntactic relations in UD.")
 
-(defvar *upos-value-list*
+(defvar *upostag-value-list*
   '("ADJ"
     "ADP"
     "ADV"
@@ -278,7 +278,8 @@
 	   number-of-projectives))))
 
 
-(defun deprel-confusion-matrix (list-sent1 list-sent2 &key (normalize t))
+
+(defun confusion-matrix (list-sent1 list-sent2 &key (normalize nil) (tag 'deprel))
   "Returns a hash table where keys are lists (deprel1 deprel2) and
    values are fraction of classifications as deprel1 of a word that
    originally was deprel2."
@@ -288,7 +289,13 @@
 	   #'list
 	   (mappend #'sentence-tokens list-sent1)
 	   (mappend #'sentence-tokens list-sent2)))
-	 (N (coerce (length all-words-pair-list) 'float)))
+	 (N (coerce (length all-words-pair-list) 'float))
+	 (value-list (ecase tag
+		       (deprel *deprel-value-list*)
+		       (upostag *upostag-value-list*)))
+	 (value-function (ecase tag
+			   (deprel #'token-simple-deprel)
+			   (upostag #'token-upostag))))
     (assert
      (every #'identity
 	    (mapcar
@@ -303,19 +310,19 @@
      ()
      "Error: Sentence words do not match.")
     
-    (dolist (rel1 *deprel-value-list*)
-      (dolist (rel2 *deprel-value-list*)
+    (dolist (rel1 value-list)
+      (dolist (rel2 value-list)
 	(setf (gethash `(,rel1 ,rel2) M) 0)))
     
     (dolist (pair all-words-pair-list)
       (incf (gethash
-	     (mapcar #'token-simple-deprel
+	     (mapcar value-function
 		     pair)
 	     M)))
 
     (if normalize
-	(dolist (rel1 *deprel-value-list* M)
-	  (dolist (rel2 *deprel-value-list*)
+	(dolist (rel1 value-list M)
+	  (dolist (rel2 value-list)
 	    (if (not
 		 (eq 0
 		     (gethash `(,rel1 ,rel2) M)))
@@ -324,59 +331,36 @@
 			 N))))))
     M))
 
-(defun upos-confusion-matrix (list-sent1 list-sent2 &key (normalize t))
-  ;; This should be reformulated in order to the same function as deprel-confusion-matrix
-  "Returns a hash table where keys are lists (upos1 upos2) and
-   values are fraction of classifications as upos1 of a word that
-   originally was upos2."
-  (let* ((M (make-hash-table :test #'equal))
-	 (all-words-pair-list
-	  (mapcar
-	   #'list
-	   (mappend #'sentence-tokens list-sent1)
-	   (mappend #'sentence-tokens list-sent2)))
-	 (N (coerce (length all-words-pair-list) 'float)))
-    (assert
-     (every #'identity
-	    (mapcar
-	     #'(lambda (pair)
-		 (let ((tk1 (first pair))
-		       (tk2 (second pair)))
-		   (and (equal (token-id tk1)
-			       (token-id tk2))
-			(equal (token-form tk1)
-			       (token-form tk2)))))
-	     all-words-pair-list))
-     ()
-     "Error: Sentence words do not match.")
-    
-    (dolist (rel1 *upos-value-list*)
-      (dolist (rel2 *upos-value-list*)
-	(setf (gethash `(,rel1 ,rel2) M) 0)))
-    
-    (dolist (pair all-words-pair-list)
-      (incf (gethash
-	     (mapcar #'token-upostag
-		     pair)
-	     M)))
+(defun format-matrix (matrix)
+  (let ((M (alexandria:hash-table-alist matrix))
+	(row-keys
+	 (sort
+	  (remove-duplicates
+	   (mapcar
+	    #'(lambda (x) (first (car x)))
+	    (alexandria:hash-table-alist
+	     (confusion-matrix *original* *original*
+			       :tag 'upostag))))
+	  #'string<))
+	(column-keys
+	 (sort
+	  (remove-duplicates
+	   (mapcar
+	    #'(lambda (x) (second (car x)))
+	    (alexandria:hash-table-alist
+	     (confusion-matrix *original* *original*
+			       :tag 'upostag))))
+	  #'string<)))
 
-    (if normalize
-	(dolist (rel1 *upos-value-list* M)
-	  (dolist (rel2 *upos-value-list*)
-	    (if (not
-		 (eq 0
-		     (gethash `(,rel1 ,rel2) M)))
-		(setf (gethash `(,rel1 ,rel2) M)
-		      (/ (gethash `(,rel1 ,rel2) M)
-			 N))))))
-    M))
-
-
-(defun format-matrix (matrix &key (entries *deprel-value-list*))
-  (let ((M (alexandria:hash-table-alist matrix)))
-    (format t "~{~15a |~^ ~}~%" (cons " " entries))
-    (dolist (value entries)
-      (let ((L (reverse (remove-if-not #'(lambda (x) (equal x value)) M
+    (format t "~{~15a |~^ ~}~%" (cons " " column-keys))
+    (dolist (dep1 row-keys)
+      (let ((L (reverse (remove-if-not #'(lambda (x) (equal x dep1)) M
 				       :key #'(lambda (x) (first (car x)))))))
 	(format t "~{~15a |~^ ~}~%"
-		(cons value (mapcar #'(lambda (x) (cdr x)) L)))))))
+		(cons dep1 (mapcar #'(lambda (x) (cdr x)) L)))))))
+
+(defun simple-deprel (deprel)
+  (car (ppcre:split ":" deprel)))
+
+(defun token-simple-deprel (token)
+  (simple-deprel (token-deprel token)))
