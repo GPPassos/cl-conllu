@@ -315,6 +315,8 @@
 	(setf (gethash `(,rel1 ,rel2) M) 0)))
     
     (dolist (pair all-words-pair-list)
+      ;; (format t "~a ~%" (mapcar value-function
+      ;; 		     pair))
       (incf (gethash
 	     (mapcar value-function
 		     pair)
@@ -332,24 +334,20 @@
     M))
 
 (defun format-matrix (matrix &key (stream *standard-output*))
-  (let ((M (alexandria:hash-table-alist matrix))
+  (let* ((M (alexandria:hash-table-alist matrix))
 	(row-keys
 	 (sort
 	  (remove-duplicates
 	   (mapcar
 	    #'(lambda (x) (first (car x)))
-	    (alexandria:hash-table-alist
-	     (confusion-matrix *original* *original*
-			       :tag 'upostag))))
+	    M))
 	  #'string<))
 	(column-keys
 	 (sort
 	  (remove-duplicates
 	   (mapcar
 	    #'(lambda (x) (second (car x)))
-	    (alexandria:hash-table-alist
-	     (confusion-matrix *original* *original*
-			       :tag 'upostag))))
+	    M))
 	  #'string<)))
 
     (format stream "~{~15a |~^ ~}~%" (cons " " column-keys))
@@ -364,3 +362,77 @@
 
 (defun token-simple-deprel (token)
   (simple-deprel (token-deprel token)))
+
+
+(defun disagreeing-words (sent1 sent2 &key (head-error t) (label-error t) (upostag-error nil) (remove-punct nil) (simple-deprel nil))
+  "Returns a list of disagreements in dependency parsing (either head
+   or label):
+
+   a list (w1,w2) where w1 is a word of sent1, w2 is its matching word
+   on sent2 and they disagree.
+
+   If head-error is true, getting the wrong head is considered a
+   disagreement (an error).
+   If label-error is true, getting the wrong label (type of dependency
+   to head) is considered a disagreement (an error).
+   By default both are errors.
+
+   We assume that sent1 is the classified result and sent2 is the
+   golden (correct) sentence."
+  (labels ((token-deprel-chosen (tk)
+			       (if simple-deprel
+				   (token-simple-deprel tk)
+				   (token-deprel tk))))
+    (assert
+     (every #'identity
+	    (mapcar
+	     #'(lambda (tk1 tk2)
+		 (and (equal (token-id tk1)
+			     (token-id tk2))
+		      (equal (token-form tk1)
+			     (token-form tk2))))
+	     (sentence-tokens sent1)
+	     (sentence-tokens sent2)))
+     ()
+     "Error: Sentence words do not match. The sentence pair ID is: ~a, ~a~%"
+     (sentence-id sent1)
+     (sentence-id sent2))
+    (assert
+     (or head-error
+	 label-error
+	 upostag-error)
+     ()
+     "Error: At least one error must be used!")
+    (remove-if
+     (lambda (x)
+       (or
+	(and remove-punct
+	     (equal (token-upostag (first x))
+		    "PUNCT"))
+	(and      
+	 (or (not head-error)
+	     (equal (token-head (first x))
+		    (token-head (second x))))
+	 (or (not label-error)
+	     (equal (token-deprel-chosen (first x))
+		    (token-deprel-chosen (second x))))
+	 (or (not upostag-error)
+	     (equal (token-upostag (first x))
+		    (token-upostag (second x)))))))
+     (mapcar
+      #'list
+      (sentence-tokens sent1)
+      (sentence-tokens sent2)))))
+
+(defun beautify-disagreeing-words (disagreeing-list sentence &key (stream *standard-output*) (skip-correct t))
+  "Prints to STREAM sentence text along with indication of disagreeing
+   tokens.
+   If SKIP-CORRECT, then sentence text of correct pairs is skipped."
+  (if (or (null skip-correct)
+	  disagreeing-list)
+      (format
+       stream
+       "~a~%~{~a~%~}~%"
+       (sentence->text sentence :ignore-mtokens t)
+       disagreeing-list)))
+
