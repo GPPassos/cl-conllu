@@ -424,15 +424,5 @@
       (sentence-tokens sent1)
       (sentence-tokens sent2)))))
 
-(defun beautify-disagreeing-words (disagreeing-list sentence &key (stream *standard-output*) (skip-correct t))
-  "Prints to STREAM sentence text along with indication of disagreeing
-   tokens.
-   If SKIP-CORRECT, then sentence text of correct pairs is skipped."
-  (if (or (null skip-correct)
-	  disagreeing-list)
-      (format
-       stream
-       "~a~%~{~a~%~}~%"
-       (sentence->text sentence :ignore-mtokens t)
-       disagreeing-list)))
+
 
