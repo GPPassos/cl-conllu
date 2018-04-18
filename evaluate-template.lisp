@@ -59,7 +59,7 @@ td:hover::after,th:hover::after
 		ids))
      :special-format-function
      #'(lambda (string)
-	 (format nil "<b>~a</b>" string)))))
+	 (format nil "~a" string)))))
 
 
 (defun get-token-parent (token sent)
@@ -70,8 +70,8 @@ td:hover::after,th:hover::after
 
 (defun html-diff-log (p-value g-value p-token g-token p-sentence g-sentence diff-table)
   (format nil "~{~a ~}<br>" (list (html-make-info-line "Id" (sentence-id g-sentence))
-				  (html-make-info-line "Text" (format-sentence-text g-sentence (remove nil (list g-token (get-token-parent g-token g-sentence)))))
-				  (html-make-info-line "Dep" (html-dependency-pair p-token g-token p-sentence g-sentence)))))
+				  (html-make-info-line "Text" (format-sentence-text g-sentence (remove nil (list g-token (get-token-parent g-token g-sentence))))))))
+				  ;; (html-make-info-line "Dep" (html-dependency-pair p-token g-token p-sentence g-sentence))
 
 
 (defun html-make-header (p-value g-value)
@@ -146,12 +146,37 @@ td:hover::after,th:hover::after
       (push log (cdr (gethash p-val (gethash g-val diff-table))))))
 
 
+;; (defun report-diff (p-value g-value p-token g-token p-sentence g-sentence diff-table)
+;;   "Stores the html diff section if a difference was found"
+;;   ;; USED TO report "errors": token pairs outside of the diagonal
+;;   ; conflict found
+;;  (when (not (string= g-value p-value))
+;;    (let ((formatted-log (html-diff-log p-value g-value p-token g-token p-sentence g-sentence diff-table)))
+;;      (add-diff-log p-value g-value formatted-log diff-table))))
+(defparameter *current-sentence-and-status* '(nil nil)
+  "Two element list which represent 
+'(CURRENT-SENTENCE IS-EXACT-MATCH?")
+(defparameter *added-sentences* nil)
 (defun report-diff (p-value g-value p-token g-token p-sentence g-sentence diff-table)
- "Stores the html diff section if a difference was found"
+  "Stores the html diff section if a difference was found"
+  ;; USED TO report "correct prediction": sentences for which all
+  ;; tokens are correctly predicted
   ; conflict found
- (when (not (string= g-value p-value))
-   (let ((formatted-log (html-diff-log p-value g-value p-token g-token p-sentence g-sentence diff-table)))
-     (add-diff-log p-value g-value formatted-log diff-table))))
+  ;; (when (not (string= g-value p-value))
+  (unless (equal (first *current-sentence-and-status*)
+		 g-sentence)
+    (when (second *current-sentence-and-status*)
+      (push (first *current-sentence-and-status*)
+	      *added-sentences*))
+    (setf *current-sentence-and-status*
+	  `(,g-sentence
+	    ,t)))
+  (if (not (string= g-value p-value))
+      (setf *current-sentence-and-status*
+	    `(,(first *current-sentence-and-status*)
+	       ,nil)))
+   )
+;; )
 
 
 (defun format-file-name (p-value g-value)
@@ -162,25 +187,36 @@ td:hover::after,th:hover::after
   (concatenate 'string (namestring diffs-path) (format-file-name p-value g-value)))
 
 
-(defun write-diffs-to-files (diff-table diffs-path)
+(defun write-diffs-to-files ()
   "Writes the diffs htmls to the correspondent files.
    Erases them from the diff table."
-  (loop for g-value being the hash-keys in diff-table do
-       (loop for p-value being the hash-keys in (gethash g-value diff-table) do
-	    (let ((filename (get-diff-file-path p-value g-value diffs-path)))
-	      (with-open-file (file filename
-				    :direction :output
-				    :if-exists :append
-				    :if-does-not-exist :create)
+  (with-open-file (file "matched-sentences.txt"
+			:direction :output
+			:if-exists :append
+			:if-does-not-exist :create)
+    (dolist (sent *added-sentences*)
+      (write-line (format nil "sent-id: ~a~%text: ~a~%~%"
+			  (sentence-id sent)
+			  (sentence-text sent))
+		  file))
+    (setf *added-sentences* nil))
+  ;; (loop for g-value being the hash-keys in diff-table do
+  ;;      (loop for p-value being the hash-keys in (gethash g-value diff-table) do
+  ;; 	    (let ((filename (get-diff-file-path p-value g-value diffs-path)))
+  ;; 	      (with-open-file (file filename
+  ;; 				    :direction :output
+  ;; 				    :if-exists :append
+  ;; 				    :if-does-not-exist :create)
 
-		(when (= (file-length file) 0)
-		  (html-write-charset file)
-		  (html-write-style-css file))
+  ;; 		(when (= (file-length file) 0)
+  ;; 		  (html-write-charset file)
+  ;; 		  (html-write-style-css file))
 
-		(loop for log in (gethash p-value (gethash g-value diff-table)) do
-		     (write-line log file))
+  ;; 		(loop for log in (gethash p-value (gethash g-value diff-table)) do
+  ;; 		     (write-line log file))
 
-		(setf (gethash p-value (gethash g-value diff-table)) nil))))))
+  ;; 		(setf (gethash p-value (gethash g-value diff-table)) nil)))))
+  )
 
 
 (defun confusion-table-add-column (confusion-table new-column)
@@ -231,9 +267,9 @@ td:hover::after,th:hover::after
   
 
 (defun diff-sentences (p-sentence g-sentence evaluation-function confusion-table diff-table &optional g-columns p-columns)
-  " Evaluates the tokens using the recieved evaluation-function.
+  " Evaluates the tokens using the received evaluation-function.
     Optional columns g-columns/p-columns for golden and predicted values.
-    The differences found are reported in the diff-table and confusion-table recieved"
+    The differences found are reported in the diff-table and confusion-table received"
   
   (loop for p-token in (sentence-tokens p-sentence)
         for g-token in (sentence-tokens g-sentence) do
@@ -266,7 +302,7 @@ td:hover::after,th:hover::after
     (loop for p-file in prediction-files
 	    for g-file in golden-files do
 	   
-	   (assert (string= (file-namestring p-file) (file-namestring g-file)) (p-file g-file) "invalid match of filenames")
+	   ;; (assert (string= (file-namestring p-file) (file-namestring g-file)) (p-file g-file) "invalid match of filenames")
 	   
        (loop for p-sentence in (read-file p-file)
 	  for g-sentence in (read-file g-file) do
@@ -275,7 +311,7 @@ td:hover::after,th:hover::after
 
 	 (when (= (rem counter batch-write) 0)
 	     (print (format nil "Progress:~a/~a " counter total-pairs))
-	     (write-diffs-to-files diff-table diffs-dir)))
+	     (write-diffs-to-files)))
 
       (with-open-file (report (merge-pathnames work-dir "matrix.html")
 			      :direction :output
@@ -286,4 +322,4 @@ td:hover::after,th:hover::after
 	(html-write-charset report)
 	(html-write-style-css report)
 	(write-confusion-table confusion-table report diffs-dir column-sort-function)
-	(write-diffs-to-files diff-table diffs-dir))))
+	(write-diffs-to-files))))
