@@ -253,6 +253,78 @@ initialize sentence OBJ."
 	      (sentence->text sentence))
        (sentence-meta-value sentence "sent_id")))
 
+(defun sentence-well-formed-tree? (sentence)
+  "Returns T if the dependency tree is well-formed; NIL otherwise."
+  (assert (eq 'sentence
+              (type-of sentence)))
+  (let* ((size (sentence-size sentence))
+         (visited-tokens (make-array
+                          size
+                          :initial-element nil))
+         (token-children-hash (alexandria:alist-hash-table
+                               (mapcar
+                                #'(lambda (token)
+                                    `(,(token-id token) .
+                                       ,(token-children token sentence)))
+                                (sentence-tokens sentence))))
+         (repeated-visit nil))
+    (labels ((visited? (token)
+               (aref visited-tokens
+                     (1- (token-id token))))
+             (mark-visited! (token)
+               (setf (aref visited-tokens
+                           (1- (token-id token)))
+                     t))
+             (get-children (token)
+               (gethash (token-id token)
+                        token-children-hash)))
+      ;; Main loop over STACK (depth-first search)
+      (let ((root (sentence-root sentence)))
+        (do* ((stack `(,root))
+              (current-token (pop stack)
+                             (pop stack)))
+             ((and (null stack)
+                   (null current-token)))
+          (if (visited? current-token)
+              (progn
+                (setf repeated-visit
+                      t)
+                (return))
+              (progn
+                (mark-visited! current-token)
+                (dolist (child (get-children current-token))
+                  (push child stack)))))
+        ;; If a problem was found, returns NIL. Otherwise, T.
+        (not (or repeated-visit
+                (not (every #'visited?
+                            (sentence-tokens sentence)))))))))
+          
+
+;; (visit (token)
+;;   (unless (visited? token)
+;;     ;; otherwise, visiting already visited token - not a tree
+;;     ;; so should retun NIL
+;;     (mark-visited token)
+;;     (mapcar
+;;      #'visit
+;;      (get-children token))
+;;     t))
+
+    ;; (labels ((visit (token)
+    ;;            (if (aref token-array
+    ;;                      (1- (token-id token)))
+                   
+    ;;          (traverse-up-from-token (token)
+    ;;            (assert (eq t
+    ;;                        (aref visited-tokens
+    ;;                              (1- (token-id token)))))
+    ;;            (unless (equal 0
+    ;;                           (token-head token))
+    ;;              ; if so, traverse finished
+    ;;              (let ((head (aref token-array
+    ;;                                (1- (token-head token)))))
+                   
+    
 
 (defun sentence-size (sentence)
   (length (sentence-tokens sentence)))
