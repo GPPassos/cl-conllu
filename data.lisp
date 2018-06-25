@@ -255,8 +255,8 @@ initialize sentence OBJ."
 
 (defun sentence-well-formed-tree? (sentence)
   "Returns T if the dependency tree is well-formed; NIL otherwise."
-  (assert (eq 'sentence
-              (type-of sentence)))
+  (check-type sentence
+              sentence)
   (let* ((size (sentence-size sentence))
          (visited-tokens (make-array
                           size
