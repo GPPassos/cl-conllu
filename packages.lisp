@@ -37,6 +37,7 @@
 	   ; #:remove-token
 	   #:adjust-sentence
 	   #:non-projective?
+           #:sentence-well-formed-tree?
 
 	   #:token
 	   #:token-id

@@ -298,33 +298,6 @@ initialize sentence OBJ."
         (not (or repeated-visit
                 (not (every #'visited?
                             (sentence-tokens sentence)))))))))
-          
-
-;; (visit (token)
-;;   (unless (visited? token)
-;;     ;; otherwise, visiting already visited token - not a tree
-;;     ;; so should retun NIL
-;;     (mark-visited token)
-;;     (mapcar
-;;      #'visit
-;;      (get-children token))
-;;     t))
-
-    ;; (labels ((visit (token)
-    ;;            (if (aref token-array
-    ;;                      (1- (token-id token)))
-                   
-    ;;          (traverse-up-from-token (token)
-    ;;            (assert (eq t
-    ;;                        (aref visited-tokens
-    ;;                              (1- (token-id token)))))
-    ;;            (unless (equal 0
-    ;;                           (token-head token))
-    ;;              ; if so, traverse finished
-    ;;              (let ((head (aref token-array
-    ;;                                (1- (token-head token)))))
-                   
-    
 
 (defun sentence-size (sentence)
   (length (sentence-tokens sentence)))
